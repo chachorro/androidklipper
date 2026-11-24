@@ -1,0 +1,58 @@
+
+name: Build Klipper SKR Mini E3 V3
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git build-essential \
+            gcc-arm-none-eabi \
+            binutils-arm-none-eabi \
+            libnewlib-arm-none-eabi \
+            libncurses-dev python3
+
+      - name: Download Klipper
+        run: |
+          git clone https://github.com/Klipper3d/klipper.git
+          cd klipper
+          git checkout 2d7717e3b62ea2fe3401b27f54f8681f80451c69
+
+      - name: Configure firmware
+        working-directory: klipper
+        run: |
+          cat > .config <<'EOF'
+          CONFIG_LOW_LEVEL_OPTIONS=y
+          CONFIG_MACH_STM32=y
+          CONFIG_MACH_STM32G0B1=y
+          CONFIG_STM32_FLASH_START_2000=y
+          CONFIG_STM32_CLOCK_REF_8M=y
+          CONFIG_STM32_USB_PA11_PA12=y
+          EOF
+          make olddefconfig
+          cat .config
+          grep -qx 'CONFIG_MACH_STM32G0B1=y' .config
+          grep -qx 'CONFIG_STM32_FLASH_START_2000=y' .config
+          grep -qx 'CONFIG_STM32_USB_PA11_PA12=y' .config
+
+      - name: Compile firmware
+        working-directory: klipper
+        run: |
+          make -j$(nproc)
+          mkdir -p ../firmware
+          cp out/klipper.bin ../firmware/firmware.bin
+          cp .config ../firmware/klipper.config
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: Klipper-SKR-Mini-E3-V3
+          path: firmware/
+          if-no-files-found: error
